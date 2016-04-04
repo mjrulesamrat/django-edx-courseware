@@ -1,0 +1,4 @@
+include README.rst
+include LICENSE.txt
+global-exclude *.pyc
+recursive-include django-edx-courseware *
