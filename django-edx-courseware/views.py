@@ -31,6 +31,8 @@ from courseware.model_data import FieldDataCache, ScoresClient
 from opaque_keys.edx.locations import SlashSeparatedCourseKey
 from opaque_keys.edx.keys import CourseKey, UsageKey
 
+from openedx.core.lib.courses import course_image_url
+
 @transaction.non_atomic_requests
 @login_required
 @cache_control(no_cache=True, no_store=True, must_revalidate=True)
@@ -91,9 +93,13 @@ def course_data(request, course_id):
                 total_points += section['section_total'].possible
                 earned_points += section['section_total'].earned
 
+        percentage_points = float(earned_points)*(100.0/float(total_points))
+
         context = {
+            "course_image": course_image_url(course),
             "total": total_points,
             "earned": earned_points,
+            "percentage": percentage_points,
             'title': title,
             'short_description' : short_description,
             'staff_access': staff_access,
