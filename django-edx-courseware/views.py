@@ -84,7 +84,16 @@ def course_data(request, course_id):
             student, request, course, field_data_cache=field_data_cache, scores_client=scores_client
         )
 
+        total_points = 0
+        earned_points = 0
+        for chapter in courseware_summary:
+            for section in chapter['sections']:
+                total_points += section['section_total'].possible
+                earned_points += section['section_total'].earned
+
         context = {
+            "total": total_points,
+            "earned": earned_points,
             'title': title,
             'short_description' : short_description,
             'staff_access': staff_access,
