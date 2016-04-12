@@ -48,64 +48,69 @@ def course_data(request, course_id):
     with modulestore().bulk_operations(course_key):
         course = get_course_with_access(request.user, 'load', course_key, depth=None, check_if_enrolled=True)
         access_response = has_access(request.user, 'load', course, course_key)
+        context={}
+        if course.has_started():
+            staff_access = bool(has_access(request.user, 'staff', course))
 
-        staff_access = bool(has_access(request.user, 'staff', course))
+            student = request.user
 
-        student = request.user
+            # NOTE: To make sure impersonation by instructor works, use
+            # student instead of request.user in the rest of the function.
 
-        # NOTE: To make sure impersonation by instructor works, use
-        # student instead of request.user in the rest of the function.
+            # The pre-fetching of groups is done to make auth checks not require an
+            # additional DB lookup (this kills the Progress page in particular).
+            student = User.objects.prefetch_related("groups").get(id=student.id)
 
-        # The pre-fetching of groups is done to make auth checks not require an
-        # additional DB lookup (this kills the Progress page in particular).
-        student = User.objects.prefetch_related("groups").get(id=student.id)
+            with outer_atomic():
+                field_data_cache = grades.field_data_cache_for_grading(course, student)
+                scores_client = ScoresClient.from_field_data_cache(field_data_cache)
 
-        with outer_atomic():
-            field_data_cache = grades.field_data_cache_for_grading(course, student)
-            scores_client = ScoresClient.from_field_data_cache(field_data_cache)
+            title = course.display_name_with_default
+            loc = course.location.replace(category='about', name='short_description')
+            about_module = get_module(
+                        request.user,
+                        request,
+                        loc,
+                        field_data_cache,
+                        log_if_not_found=False,
+                        wrap_xmodule_display=False,
+                        static_asset_path=course.static_asset_path,
+                        course=course
+                    )
+            short_description = about_module.render(STUDENT_VIEW).content
 
-        title = course.display_name_with_default
-        loc = course.location.replace(category='about', name='short_description')
-        about_module = get_module(
-                    request.user,
-                    request,
-                    loc,
-                    field_data_cache,
-                    log_if_not_found=False,
-                    wrap_xmodule_display=False,
-                    static_asset_path=course.static_asset_path,
-                    course=course
-                )
-        short_description = about_module.render(STUDENT_VIEW).content
+            courseware_summary = grades.progress_summary(
+                student, request, course, field_data_cache=field_data_cache, scores_client=scores_client
+            )
 
-        courseware_summary = grades.progress_summary(
-            student, request, course, field_data_cache=field_data_cache, scores_client=scores_client
-        )
+            grade_summary = grades.grade(
+                student, request, course, field_data_cache=field_data_cache, scores_client=scores_client
+            )
 
-        grade_summary = grades.grade(
-            student, request, course, field_data_cache=field_data_cache, scores_client=scores_client
-        )
+            total_points = 0
+            earned_points = 0
+            for chapter in courseware_summary:
+                for section in chapter['sections']:
+                    total_points += section['section_total'].possible
+                    earned_points += section['section_total'].earned
 
-        total_points = 0
-        earned_points = 0
-        for chapter in courseware_summary:
-            for section in chapter['sections']:
-                total_points += section['section_total'].possible
-                earned_points += section['section_total'].earned
+            percentage_points = float(earned_points)*(100.0/float(total_points))
 
-        percentage_points = float(earned_points)*(100.0/float(total_points))
-
-        context = {
-            "course_image": course_image_url(course),
-            "total": total_points,
-            "earned": earned_points,
-            "percentage": percentage_points,
-            'title': title,
-            'short_description' : short_description,
-            'staff_access': staff_access,
-            'student': student.id,
-            'passed': is_course_passed(course, grade_summary),
-        }
+            context = {
+                "course_image": course_image_url(course),
+                "total": total_points,
+                "earned": earned_points,
+                "percentage": percentage_points,
+                'title': title,
+                'short_description' : short_description,
+                'staff_access': staff_access,
+                'student': student.id,
+                'passed': is_course_passed(course, grade_summary),
+            }
+        else:
+            context={
+                "started": course.has_started(),
+            }
 
         return JsonResponse(context)
 
