@@ -97,6 +97,7 @@ def course_data(request, course_id):
             percentage_points = float(earned_points)*(100.0/float(total_points))
 
             context = {
+	        "started": course.has_started(),
                 "course_image": course_image_url(course),
                 "total": total_points,
                 "earned": earned_points,
