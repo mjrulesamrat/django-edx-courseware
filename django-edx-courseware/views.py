@@ -33,6 +33,16 @@ from opaque_keys.edx.keys import CourseKey, UsageKey
 
 from openedx.core.lib.courses import course_image_url
 
+# ORA imports
+from openassessment.workflow.models import AssessmentWorkflow
+from student.models import CourseAccessRole
+from django.core.mail import EmailMessage
+from openedx.core.djangoapps.content.course_overviews.models import \
+    CourseOverview
+from openassessment.workflow import api
+from edxmako.shortcuts import render_to_string
+
+
 @transaction.non_atomic_requests
 @login_required
 @cache_control(no_cache=True, no_store=True, must_revalidate=True)
@@ -135,3 +145,35 @@ def is_course_passed(course, grade_summary=None, student=None, request=None):
         grade_summary = grades.grade(student, request, course)
 
     return success_cutoff and grade_summary['percent'] >= success_cutoff
+
+
+def ora_notification(request):
+    """
+    To send ORA statactics to staff users of course
+    :param request:
+    """
+    try:
+        course_data = CourseOverview.objects.all()
+        for cid in course_data:
+            item_data = AssessmentWorkflow.objects.filter(
+                course_id=cid.id).values_list('item_id', flat=True)
+            item_data = list(set(item_data))
+            for iid in item_data:
+                statistics = api.get_status_counts(cid.id, iid,
+                                                   ["staff", "peer", "done",
+                                                    "waiting"])
+                staff_users = CourseAccessRole.objects.filter(course_id=cid.id,
+                                                              role='staff')
+                for u in staff_users:
+                    html_message = render_to_string('peer_grading/ora_report.html',
+                                                    {'status_counts': statistics,
+                                                     'course': cid.id,
+                                                     'user': u.user
+                                                     })
+                    email = EmailMessage(
+                        "LYNX courses's Peer Assessment statastics", html_message,
+                        to=[u.user.email])
+                    email.send()
+                    print "message sent"
+    except Exception as e:
+        print e,"<--- Error"
