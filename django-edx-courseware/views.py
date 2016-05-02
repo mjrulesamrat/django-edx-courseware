@@ -41,6 +41,9 @@ from openedx.core.djangoapps.content.course_overviews.models import \
     CourseOverview
 from openassessment.workflow import api
 from edxmako.shortcuts import render_to_string
+from xmodule.modulestore.search import path_to_location
+from opaque_keys.edx.keys import CourseKey, UsageKey
+from django.contrib.sites.shortcuts import get_current_site
 
 
 @transaction.non_atomic_requests
@@ -164,16 +167,27 @@ def ora_notification(request):
                                                     "waiting"])
                 staff_users = CourseAccessRole.objects.filter(course_id=cid.id,
                                                               role='staff')
-                for u in staff_users:
-                    html_message = render_to_string('peer_grading/ora_report.html',
-                                                    {'status_counts': statistics,
-                                                     'course': cid.id,
-                                                     'user': u.user
-                                                     })
-                    email = EmailMessage(
-                        "LYNX courses's Peer Assessment statastics", html_message,
-                        to=[u.user.email])
-                    email.send()
-                    print "message sent"
+                try:
+                    usage_key = UsageKey.from_string(iid).replace(course_key=cid.id)
+                    (course_key, chapter, section, vertical_unused,
+                    position, final_target_id
+                    ) = path_to_location(modulestore(), usage_key)
+                    current_site = get_current_site(request)
+                    courseware_url = current_site.domain+"/courses/"+str(cid.id)+"/courseware/"+chapter+"/"+section
+                    for u in staff_users:
+                        html_message = render_to_string('peer_grading/ora_report.html',
+                                                        {'status_counts': statistics,
+                                                         'course': cid.id,
+                                                         'user': u.user,
+                                                         'courseware_url':courseware_url
+                                                         })
+                        email = EmailMessage(
+                            "LYNX courses's Peer Assessment statastics", html_message,
+                            to=[u.user.email])
+                        email.send()
+                        print "message sent"
+                except Exception as e:
+                    print e,"Inner Exception<-------"
+                    pass
     except Exception as e:
         print e,"<--- Error"
