@@ -177,7 +177,7 @@ def ora_notification(request):
                     for u in staff_users:
                         html_message = render_to_string('peer_grading/ora_report.html',
                                                         {'status_counts': statistics,
-                                                         'course': cid.id,
+                                                         'course': cid.display_name,
                                                          'user': u.user,
                                                          'courseware_url':courseware_url
                                                          })
