@@ -182,7 +182,7 @@ def ora_notification(request):
                                                          'courseware_url':courseware_url
                                                          })
                         email = EmailMessage(
-                            "LYNX courses's Peer Assessment statastics", html_message,
+                            "LYNX Online-Training: New Submissions for Staff Review", html_message,
                             to=[u.user.email])
                         email.send()
                         print "message sent"
