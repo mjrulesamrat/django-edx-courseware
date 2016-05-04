@@ -44,6 +44,7 @@ from edxmako.shortcuts import render_to_string
 from xmodule.modulestore.search import path_to_location
 from opaque_keys.edx.keys import CourseKey, UsageKey
 from django.contrib.sites.shortcuts import get_current_site
+from openassessment.assessment.api import staff
 
 
 @transaction.non_atomic_requests
@@ -158,9 +159,16 @@ def ora_notification(request):
     try:
         course_data = CourseOverview.objects.all()
         for cid in course_data:
-            item_data = AssessmentWorkflow.objects.filter(
-                course_id=cid.id).values_list('item_id', flat=True)
-            item_data = list(set(item_data))
+            assessment_data = AssessmentWorkflow.objects.filter(
+                course_id=cid.id)
+            item_data = []
+            for sid in assessment_data:
+                if not bool(staff.get_latest_staff_assessment(sid.submission_uuid)):
+                    if sid.item_id not in item_data:
+                        item_data.append(sid.item_id)
+            # item_data = AssessmentWorkflow.objects.filter(
+            #     course_id=cid.id).values_list('item_id', flat=True)
+            # item_data = list(set(item_data))
             for iid in item_data:
                 statistics = api.get_status_counts(cid.id, iid,
                                                    ["staff", "peer", "done",
