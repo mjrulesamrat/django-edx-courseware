@@ -13,18 +13,17 @@ from openassessment.workflow import api
 from edxmako.shortcuts import render_to_string
 from xmodule.modulestore.search import path_to_location
 from opaque_keys.edx.keys import CourseKey, UsageKey
-from django.contrib.sites.shortcuts import get_current_site
 from openassessment.assessment.api import staff
+from django.conf import settings
 
 from celery import task
 
 TASK_LOG = logging.getLogger('edx.celery.task')
 
 @task()
-def staff_notification(request):
+def staff_notification():
     """
     To send ORA statactics to staff users of course
-    :param request:
     """
     try:
         course_data = CourseOverview.objects.all()
@@ -50,8 +49,8 @@ def staff_notification(request):
                     (course_key, chapter, section, vertical_unused,
                     position, final_target_id
                     ) = path_to_location(modulestore(), usage_key)
-                    current_site = get_current_site(request)
-                    courseware_url = current_site.domain+"/courses/"+str(cid.id)+"/courseware/"+chapter+"/"+section
+                    current_site_domain = 'http://{0}'.format(settings.SITE_NAME)
+                    courseware_url = current_site_domain+"/courses/"+str(cid.id)+"/courseware/"+chapter+"/"+section
                     for u in staff_users:
                         html_message = render_to_string('peer_grading/ora_report.html',
                                                         {'status_counts': statistics,
